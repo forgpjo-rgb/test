@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon Drift: mini-game</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 20% 10%, #2b2a68 0, #110b2f 35%, #05040d 100%);
+        color: #f3f4ff;
+      }
+
+      .game-shell {
+        width: min(92vw, 860px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        background: rgba(8, 8, 20, 0.8);
+        backdrop-filter: blur(3px);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+      }
+
+      .hud {
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        font-size: 0.95rem;
+        background: linear-gradient(90deg, rgba(109, 93, 255, 0.25), rgba(80, 240, 255, 0.08));
+      }
+
+      .chip {
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      #game {
+        width: 100%;
+        height: auto;
+        display: block;
+        background: linear-gradient(180deg, #090a16 0%, #090a12 65%, #06111b 100%);
+      }
+
+      .hint {
+        padding: 12px 16px 18px;
+        color: #c4c8ff;
+        font-size: 0.9rem;
+        line-height: 1.4;
+      }
+
+      kbd {
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-bottom-width: 2px;
+        border-radius: 6px;
+        padding: 1px 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85em;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      @media (max-width: 720px) {
+        .hud {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="hud">
+        <strong>🎮 Neon Drift</strong>
+        <span class="chip">Счёт: <span id="score">0</span></span>
+        <span class="chip">Рекорд: <span id="best">0</span></span>
+        <span class="chip" id="status">Нажми пробел для старта</span>
+      </header>
+      <canvas id="game" width="860" height="500"></canvas>
+      <footer class="hint">
+        Двигайся: <kbd>←</kbd> <kbd>→</kbd> или <kbd>A</kbd> <kbd>D</kbd>. <br />
+        Уворачивайся от метеоров, собирай звёзды и держись как можно дольше.
+      </footer>
+    </main>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      const scoreEl = document.getElementById("score");
+      const bestEl = document.getElementById("best");
+      const statusEl = document.getElementById("status");
+
+      const state = {
+        running: false,
+        score: 0,
+        best: Number(localStorage.getItem("neon-drift-best") || 0),
+        time: 0,
+        spawnTimer: 0,
+        starTimer: 0,
+        speed: 2.8,
+      };
+
+      bestEl.textContent = state.best;
+
+      const player = {
+        x: canvas.width / 2,
+        y: canvas.height - 60,
+        width: 62,
+        height: 24,
+        vx: 0,
+        maxSpeed: 7,
+      };
+
+      const meteors = [];
+      const stars = [];
+      const particles = [];
+      const keys = {};
+
+      function reset() {
+        state.running = true;
+        state.score = 0;
+        state.time = 0;
+        state.spawnTimer = 0;
+        state.starTimer = 90;
+        state.speed = 2.8;
+        meteors.length = 0;
+        stars.length = 0;
+        particles.length = 0;
+        player.x = canvas.width / 2;
+        player.vx = 0;
+        updateHud();
+        statusEl.textContent = "Лети!";
+      }
+
+      function updateHud() {
+        scoreEl.textContent = Math.floor(state.score);
+        bestEl.textContent = state.best;
+      }
+
+      function createMeteor() {
+        const size = 24 + Math.random() * 42;
+        meteors.push({
+          x: Math.random() * (canvas.width - size),
+          y: -size,
+          size,
+          vy: state.speed + Math.random() * (2 + state.time * 0.0025),
+          spin: (Math.random() - 0.5) * 0.1,
+          angle: Math.random() * Math.PI,
+        });
+      }
+
+      function createStar() {
+        const size = 14 + Math.random() * 8;
+        stars.push({
+          x: Math.random() * (canvas.width - size),
+          y: -size,
+          size,
+          vy: 2.2 + Math.random() * 1.2,
+          pulse: Math.random() * Math.PI,
+        });
+      }
+
+      function burst(x, y, color) {
+        for (let i = 0; i < 15; i += 1) {
+          particles.push({
+            x,
+            y,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 0.5) * 5,
+            life: 26 + Math.random() * 10,
+            color,
+          });
+        }
+      }
+
+      function collides(a, b) {
+        return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+      }
+
+      function update() {
+        if (!state.running) {
+          draw();
+          requestAnimationFrame(update);
+          return;
+        }
+
+        state.time += 1;
+        state.score += 0.09;
+        state.speed += 0.0008;
+
+        const left = keys.ArrowLeft || keys.KeyA;
+        const right = keys.ArrowRight || keys.KeyD;
+
+        if (left && !right) {
+          player.vx -= 0.7;
+        } else if (right && !left) {
+          player.vx += 0.7;
+        } else {
+          player.vx *= 0.88;
+        }
+
+        player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
+        player.x += player.vx;
+        player.x = Math.max(4, Math.min(canvas.width - player.width - 4, player.x));
+
+        state.spawnTimer -= 1;
+        if (state.spawnTimer <= 0) {
+          createMeteor();
+          state.spawnTimer = Math.max(16, 40 - state.time * 0.04);
+        }
+
+        state.starTimer -= 1;
+        if (state.starTimer <= 0) {
+          createStar();
+          state.starTimer = 145 + Math.random() * 90;
+        }
+
+        const playerBox = { x: player.x, y: player.y, width: player.width, height: player.height };
+
+        for (let i = meteors.length - 1; i >= 0; i -= 1) {
+          const m = meteors[i];
+          m.y += m.vy;
+          m.angle += m.spin;
+
+          const hitbox = { x: m.x + 6, y: m.y + 6, width: m.size - 12, height: m.size - 12 };
+          if (collides(playerBox, hitbox)) {
+            burst(player.x + player.width / 2, player.y + player.height / 2, "#ff7a7a");
+            state.running = false;
+            statusEl.textContent = "💥 Конец игры — пробел, чтобы снова влететь";
+          }
+
+          if (m.y > canvas.height + m.size) {
+            meteors.splice(i, 1);
+          }
+        }
+
+        for (let i = stars.length - 1; i >= 0; i -= 1) {
+          const s = stars[i];
+          s.y += s.vy;
+          s.pulse += 0.1;
+
+          const hitbox = { x: s.x, y: s.y, width: s.size, height: s.size };
+          if (collides(playerBox, hitbox)) {
+            state.score += 30;
+            burst(s.x + s.size / 2, s.y + s.size / 2, "#7affea");
+            stars.splice(i, 1);
+            continue;
+          }
+
+          if (s.y > canvas.height + s.size) {
+            stars.splice(i, 1);
+          }
+        }
+
+        for (let i = particles.length - 1; i >= 0; i -= 1) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.98;
+          p.vy *= 0.98;
+          p.life -= 1;
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+          }
+        }
+
+        if (!state.running && state.score > state.best) {
+          state.best = Math.floor(state.score);
+          localStorage.setItem("neon-drift-best", state.best);
+        }
+
+        updateHud();
+        draw();
+        requestAnimationFrame(update);
+      }
+
+      function drawShip() {
+        const x = player.x;
+        const y = player.y;
+
+        ctx.save();
+        ctx.translate(x + player.width / 2, y + player.height / 2);
+        ctx.rotate(player.vx * 0.03);
+
+        ctx.fillStyle = "#66f5ff";
+        ctx.shadowColor = "#67e8ff";
+        ctx.shadowBlur = 16;
+
+        ctx.beginPath();
+        ctx.moveTo(-player.width / 2, player.height / 2);
+        ctx.lineTo(0, -player.height / 2);
+        ctx.lineTo(player.width / 2, player.height / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#d7a3ff";
+        ctx.fillRect(-8, 2, 16, 6);
+        ctx.restore();
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, "#0a0d27");
+        gradient.addColorStop(1, "#031520");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < 40; i += 1) {
+          const x = (i * 179 + state.time * 0.35) % canvas.width;
+          const y = (i * 97 + state.time * 0.52) % canvas.height;
+          ctx.fillStyle = `rgba(140, 175, 255, ${0.15 + (i % 4) * 0.12})`;
+          ctx.fillRect(x, y, 2, 2);
+        }
+
+        meteors.forEach((m) => {
+          ctx.save();
+          ctx.translate(m.x + m.size / 2, m.y + m.size / 2);
+          ctx.rotate(m.angle);
+          ctx.fillStyle = "#ff825f";
+          ctx.shadowColor = "#ff8b61";
+          ctx.shadowBlur = 14;
+          ctx.beginPath();
+          for (let i = 0; i < 8; i += 1) {
+            const r = i % 2 === 0 ? m.size / 2 : m.size / 2.6;
+            const a = (Math.PI * 2 * i) / 8;
+            const px = Math.cos(a) * r;
+            const py = Math.sin(a) * r;
+            if (i === 0) {
+              ctx.moveTo(px, py);
+            } else {
+              ctx.lineTo(px, py);
+            }
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        });
+
+        stars.forEach((s) => {
+          const alpha = 0.65 + Math.sin(s.pulse) * 0.25;
+          ctx.fillStyle = `rgba(122, 255, 234, ${alpha})`;
+          ctx.shadowColor = "#7affea";
+          ctx.shadowBlur = 16;
+          ctx.beginPath();
+          ctx.arc(s.x + s.size / 2, s.y + s.size / 2, s.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        particles.forEach((p) => {
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.life / 36);
+          ctx.fillRect(p.x, p.y, 3, 3);
+        });
+
+        ctx.globalAlpha = 1;
+        drawShip();
+
+        if (!state.running) {
+          ctx.fillStyle = "rgba(6, 8, 18, 0.65)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#f6f5ff";
+          ctx.font = "700 42px Segoe UI";
+          ctx.textAlign = "center";
+          ctx.fillText("Neon Drift", canvas.width / 2, canvas.height / 2 - 30);
+          ctx.font = "500 24px Segoe UI";
+          ctx.fillStyle = "#9ee6ff";
+          ctx.fillText("Пробел — старт", canvas.width / 2, canvas.height / 2 + 20);
+        }
+      }
+
+      window.addEventListener("keydown", (event) => {
+        keys[event.code] = true;
+        if (event.code === "Space") {
+          event.preventDefault();
+          if (!state.running) {
+            reset();
+          }
+        }
+      });
+
+      window.addEventListener("keyup", (event) => {
+        keys[event.code] = false;
+      });
+
+      draw();
+      requestAnimationFrame(update);
+    </script>
+  </body>
+</html>
