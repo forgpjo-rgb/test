@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple Dodge</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: Arial, sans-serif;
+        background: #121826;
+        color: #fff;
+      }
+      .wrap {
+        width: min(94vw, 760px);
+        background: #1a2234;
+        border: 1px solid #324162;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .hud {
+        display: flex;
+        gap: 12px;
+        padding: 10px 12px;
+        background: #0f1728;
+        font-size: 14px;
+      }
+      .hint {
+        padding: 10px 12px;
+        font-size: 14px;
+        color: #cdd8f7;
+      }
+      canvas { display: block; width: 100%; height: auto; background: #0b1120; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="hud">
+        <strong>Simple Dodge</strong>
+        <span>Счёт: <span id="score">0</span></span>
+        <span>Рекорд: <span id="best">0</span></span>
+        <span id="status">Space — старт</span>
+      </div>
+      <canvas id="game" width="760" height="440"></canvas>
+      <div class="hint">Двигайся: ← → или A D. Избегай падающих блоков. Space — старт/рестарт.</div>
+    </main>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const scoreEl = document.getElementById("score");
+      const bestEl = document.getElementById("best");
+      const statusEl = document.getElementById("status");
+
+      const BEST_KEY = "simple-dodge-best";
+      const state = {
+        running: false,
+        score: 0,
+        best: Number(localStorage.getItem(BEST_KEY) || 0),
+        spawn: 0,
+        speed: 3,
+      };
+
+      const player = { x: 360, y: 392, w: 40, h: 30, vx: 0 };
+      const blocks = [];
+      const keys = {};
+
+      bestEl.textContent = state.best;
+
+      function reset() {
+        state.running = true;
+        state.score = 0;
+        state.spawn = 0;
+        state.speed = 3;
+        blocks.length = 0;
+        player.x = (canvas.width - player.w) / 2;
+        player.vx = 0;
+        statusEl.textContent = "Игра идёт";
+      }
+
+      function endGame() {
+        state.running = false;
+        if (state.score > state.best) {
+          state.best = Math.floor(state.score);
+          localStorage.setItem(BEST_KEY, state.best);
+        }
+        statusEl.textContent = "Проигрыш. Space — ещё раз";
+      }
+
+      function hit(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function update() {
+        if (!state.running) return;
+
+        state.score += 0.1;
+        state.speed += 0.0008;
+
+        const left = keys.ArrowLeft || keys.KeyA;
+        const right = keys.ArrowRight || keys.KeyD;
+
+        if (left && !right) player.vx = -6;
+        else if (right && !left) player.vx = 6;
+        else player.vx = 0;
+
+        player.x += player.vx;
+        if (player.x < 0) player.x = 0;
+        if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+
+        state.spawn -= 1;
+        if (state.spawn <= 0) {
+          const w = 20 + Math.random() * 40;
+          blocks.push({ x: Math.random() * (canvas.width - w), y: -30, w, h: 24, vy: state.speed + Math.random() * 2 });
+          state.spawn = Math.max(16, 38 - state.score * 0.03);
+        }
+
+        for (let i = blocks.length - 1; i >= 0; i -= 1) {
+          const b = blocks[i];
+          b.y += b.vy;
+
+          if (hit(player, b)) {
+            endGame();
+            break;
+          }
+
+          if (b.y > canvas.height + b.h) blocks.splice(i, 1);
+        }
+
+        scoreEl.textContent = Math.floor(state.score);
+        bestEl.textContent = state.best;
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#0d1526";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#1f365a";
+        for (let i = 0; i < 18; i += 1) {
+          ctx.fillRect((i * 43 + performance.now() * 0.03) % canvas.width, (i * 29) % canvas.height, 2, 2);
+        }
+
+        ctx.fillStyle = "#ff6d6d";
+        blocks.forEach((b) => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+        ctx.fillStyle = "#5be3ff";
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+
+        if (!state.running) {
+          ctx.fillStyle = "rgba(0,0,0,0.45)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#fff";
+          ctx.textAlign = "center";
+          ctx.font = "700 34px Arial";
+          ctx.fillText("Simple Dodge", canvas.width / 2, canvas.height / 2 - 20);
+          ctx.font = "500 20px Arial";
+          ctx.fillText("Space — старт", canvas.width / 2, canvas.height / 2 + 20);
+        }
+      }
+
+      function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+      }
+
+      window.addEventListener("keydown", (e) => {
+        keys[e.code] = true;
+        if (e.code === "Space") {
+          e.preventDefault();
+          if (!state.running) reset();
+        }
+      });
+
+      window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+
+      draw();
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>
