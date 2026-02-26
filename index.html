@@ -3,16 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Neon Drift X</title>
+    <title>Neon Drift X+</title>
     <style>
-      :root {
-        color-scheme: dark;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
@@ -22,80 +16,66 @@
         color: #eef4ff;
         background: radial-gradient(circle at 20% 0%, #302b80 0, #120c39 34%, #05050e 100%);
       }
-
       .shell {
-        width: min(94vw, 920px);
+        width: min(95vw, 980px);
         border-radius: 18px;
         overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(7, 8, 18, 0.8);
-        box-shadow: 0 30px 100px rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(255,255,255,.2);
+        background: rgba(7,8,18,.82);
+        box-shadow: 0 30px 100px rgba(0,0,0,.55);
       }
-
       .hud {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         align-items: center;
-        justify-content: space-between;
-        padding: 12px 14px;
+        padding: 10px 12px;
         background: linear-gradient(90deg, rgba(114, 91, 255, 0.3), rgba(81, 233, 255, 0.1));
-        font-size: 0.95rem;
+        font-size: .92rem;
       }
-
-      .title {
-        font-weight: 700;
-      }
-
+      .title { font-weight: 700; margin-right: auto; }
       .pill {
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        padding: 6px 10px;
+        background: rgba(255,255,255,.08);
+        border: 1px solid rgba(255,255,255,.12);
         border-radius: 999px;
+        padding: 5px 9px;
       }
-
-      #game {
-        width: 100%;
-        height: auto;
-        display: block;
-      }
-
+      #game { width: 100%; display: block; }
       .controls {
         color: #c7d3ff;
         padding: 12px 14px 16px;
-        font-size: 0.9rem;
-        line-height: 1.45;
+        line-height: 1.5;
+        font-size: .9rem;
       }
-
       kbd {
         border-radius: 5px;
         padding: 1px 6px;
-        font-size: 0.86em;
-        border: 1px solid rgba(255, 255, 255, 0.25);
+        border: 1px solid rgba(255,255,255,.25);
         border-bottom-width: 2px;
-        background: rgba(255, 255, 255, 0.06);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: rgba(255,255,255,.06);
       }
     </style>
   </head>
   <body>
     <main class="shell">
       <header class="hud">
-        <span class="title">🎮 Neon Drift X</span>
+        <span class="title">🎮 Neon Drift X+</span>
         <span class="pill">Сложность: <span id="difficultyName">Normal</span></span>
+        <span class="pill">Волна: <span id="wave">1</span></span>
         <span class="pill">Счёт: <span id="score">0</span></span>
         <span class="pill">Рекорд: <span id="best">0</span></span>
         <span class="pill">HP: <span id="hp">3</span></span>
         <span class="pill">Комбо: <span id="combo">x1.0</span></span>
+        <span class="pill">Энергия EMP: <span id="energy">0%</span></span>
+        <span class="pill">Кристаллы: <span id="crystals">0</span></span>
         <span class="pill" id="status">Выбери сложность: 1/2/3</span>
       </header>
-      <canvas id="game" width="920" height="540"></canvas>
+      <canvas id="game" width="980" height="560"></canvas>
       <div class="controls">
-        Движение: <kbd>←</kbd><kbd>→</kbd> или <kbd>A</kbd><kbd>D</kbd>. 
-        Рывок: <kbd>Shift</kbd> (даёт неуязвимость на короткое время, есть кулдаун). 
-        Пауза: <kbd>P</kbd>. 
-        Сложность: <kbd>1</kbd> Easy, <kbd>2</kbd> Normal, <kbd>3</kbd> Hard. 
-        Старт/рестарт: <kbd>Space</kbd>.
+        Движение <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd>, рывок <kbd>Shift</kbd>, EMP-удар <kbd>E</kbd>, пауза <kbd>P</kbd>.<br />
+        Сложность: <kbd>1</kbd> Easy, <kbd>2</kbd> Normal, <kbd>3</kbd> Hard. Старт/рестарт: <kbd>Space</kbd>.<br />
+        Между забегами: <kbd>U</kbd> — апгрейд корпуса (+1 HP, стоит 25 кристаллов, сохраняется).
       </div>
     </main>
 
@@ -109,105 +89,90 @@
       const comboEl = document.getElementById("combo");
       const statusEl = document.getElementById("status");
       const difficultyNameEl = document.getElementById("difficultyName");
+      const waveEl = document.getElementById("wave");
+      const energyEl = document.getElementById("energy");
+      const crystalsEl = document.getElementById("crystals");
 
-      const DIFFICULTIES = {
-        easy: {
-          label: "Easy",
-          key: "1",
-          meteorSpawn: 52,
-          fastMeteorChance: 0.08,
-          scoreRate: 0.08,
-          damage: 1,
-          maxHp: 4,
-          starInterval: [135, 200],
-          powerInterval: [260, 340],
-        },
-        normal: {
-          label: "Normal",
-          key: "2",
-          meteorSpawn: 40,
-          fastMeteorChance: 0.18,
-          scoreRate: 0.1,
-          damage: 1,
-          maxHp: 3,
-          starInterval: [120, 180],
-          powerInterval: [220, 300],
-        },
-        hard: {
-          label: "Hard",
-          key: "3",
-          meteorSpawn: 28,
-          fastMeteorChance: 0.32,
-          scoreRate: 0.13,
-          damage: 2,
-          maxHp: 3,
-          starInterval: [105, 150],
-          powerInterval: [190, 260],
-        },
+      const KEYS = {
+        best: "neon-drift-best-v2",
+        crystals: "neon-drift-crystals",
+        hpUpgrade: "neon-drift-hp-upgrade",
       };
 
-      const BEST_KEY = "neon-drift-x-best";
+      const DIFFICULTIES = {
+        easy: { label: "Easy", meteorSpawn: 54, fastChance: 0.1, cometChance: 0.07, scoreRate: 0.09, damage: 1, hp: 4 },
+        normal: { label: "Normal", meteorSpawn: 42, fastChance: 0.2, cometChance: 0.12, scoreRate: 0.11, damage: 1, hp: 3 },
+        hard: { label: "Hard", meteorSpawn: 31, fastChance: 0.34, cometChance: 0.2, scoreRate: 0.14, damage: 2, hp: 3 },
+      };
 
       const state = {
         running: false,
         paused: false,
         gameOver: false,
         score: 0,
-        best: Number(localStorage.getItem(BEST_KEY) || 0),
-        frame: 0,
+        best: Number(localStorage.getItem(KEYS.best) || 0),
+        crystals: Number(localStorage.getItem(KEYS.crystals) || 0),
+        hpUpgrade: Number(localStorage.getItem(KEYS.hpUpgrade) || 0),
         difficulty: DIFFICULTIES.normal,
-        meteorTimer: 0,
-        starTimer: 0,
-        powerTimer: 0,
+        frame: 0,
+        wave: 1,
         combo: 1,
         comboTime: 0,
+        meteorTimer: 0,
+        starTimer: 120,
+        powerTimer: 210,
       };
 
       const player = {
         x: canvas.width / 2 - 30,
-        y: canvas.height - 66,
+        y: canvas.height - 64,
         w: 60,
         h: 24,
         vx: 0,
-        speed: 0.72,
-        maxSpeed: 8,
+        speed: 0.73,
+        maxSpeed: 8.4,
         hp: 3,
         invuln: 0,
         shield: 0,
         slowmo: 0,
         dashCd: 0,
         dashFrames: 0,
+        emp: 0,
       };
 
       const keys = {};
       const meteors = [];
+      const comets = [];
       const stars = [];
       const powers = [];
       const particles = [];
       const trails = [];
 
-      bestEl.textContent = state.best;
-
-      function rand(min, max) {
-        return min + Math.random() * (max - min);
+      function saveProgress() {
+        localStorage.setItem(KEYS.best, String(state.best));
+        localStorage.setItem(KEYS.crystals, String(state.crystals));
+        localStorage.setItem(KEYS.hpUpgrade, String(state.hpUpgrade));
       }
 
-      function randInt(min, max) {
-        return Math.floor(rand(min, max + 1));
-      }
+      function rand(min, max) { return min + Math.random() * (max - min); }
+      function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
 
-      function chooseDifficultyByKey(code) {
+      function setDifficulty(code) {
         if (code === "Digit1") state.difficulty = DIFFICULTIES.easy;
         if (code === "Digit2") state.difficulty = DIFFICULTIES.normal;
         if (code === "Digit3") state.difficulty = DIFFICULTIES.hard;
         difficultyNameEl.textContent = state.difficulty.label;
-        if (!state.running) {
-          statusEl.textContent = `Сложность ${state.difficulty.label}. Нажми Space`;
-        }
+        if (!state.running) statusEl.textContent = `Сложность ${state.difficulty.label}. Space — старт`;
       }
 
-      function scheduleTimer(range) {
-        return randInt(range[0], range[1]);
+      function refreshHud() {
+        scoreEl.textContent = Math.floor(state.score);
+        bestEl.textContent = state.best;
+        hpEl.textContent = player.hp;
+        comboEl.textContent = `x${state.combo.toFixed(1)}`;
+        waveEl.textContent = state.wave;
+        energyEl.textContent = `${Math.floor(player.emp)}%`;
+        crystalsEl.textContent = state.crystals;
       }
 
       function resetGame() {
@@ -216,90 +181,82 @@
         state.gameOver = false;
         state.score = 0;
         state.frame = 0;
+        state.wave = 1;
         state.combo = 1;
         state.comboTime = 0;
         state.meteorTimer = 0;
-        state.starTimer = scheduleTimer(state.difficulty.starInterval);
-        state.powerTimer = scheduleTimer(state.difficulty.powerInterval);
+        state.starTimer = 120;
+        state.powerTimer = 210;
 
         player.x = canvas.width / 2 - player.w / 2;
         player.vx = 0;
-        player.hp = state.difficulty.maxHp;
+        player.hp = state.difficulty.hp + state.hpUpgrade;
         player.invuln = 0;
         player.shield = 0;
         player.slowmo = 0;
         player.dashCd = 0;
         player.dashFrames = 0;
+        player.emp = 0;
 
         meteors.length = 0;
+        comets.length = 0;
         stars.length = 0;
         powers.length = 0;
         particles.length = 0;
         trails.length = 0;
 
-        statusEl.textContent = "Погнали!";
-        updateHud();
-      }
-
-      function updateHud() {
-        scoreEl.textContent = Math.floor(state.score);
-        bestEl.textContent = state.best;
-        hpEl.textContent = player.hp;
-        comboEl.textContent = `x${state.combo.toFixed(1)}`;
+        statusEl.textContent = "Полетели!";
+        refreshHud();
       }
 
       function spawnMeteor() {
-        const size = rand(24, 58);
-        const fast = Math.random() < state.difficulty.fastMeteorChance;
-        const zigzag = Math.random() < 0.22;
+        const size = rand(24, 62);
+        const fast = Math.random() < state.difficulty.fastChance;
+        const elite = Math.random() < Math.min(0.08 + state.wave * 0.02, 0.28);
         meteors.push({
           x: rand(0, canvas.width - size),
           y: -size,
           size,
-          vy: rand(2.2, 4.4) + state.frame * 0.0009 + (fast ? 2.1 : 0),
-          vx: zigzag ? rand(-1.4, 1.4) : 0,
-          zigzag,
+          vy: rand(2.3, 4.8) + state.wave * 0.25 + (fast ? 1.8 : 0),
+          vx: rand(-1.2, 1.2),
+          zigzag: Math.random() < 0.25,
           phase: rand(0, Math.PI * 2),
-          fast,
-          spin: rand(-0.12, 0.12),
           angle: rand(0, Math.PI),
+          spin: rand(-0.12, 0.12),
+          fast,
+          elite,
+          hp: elite ? 2 : 1,
+        });
+      }
+
+      function spawnComet() {
+        const fromLeft = Math.random() < 0.5;
+        const size = rand(20, 34);
+        const y = rand(70, canvas.height - 200);
+        comets.push({
+          x: fromLeft ? -size : canvas.width + size,
+          y,
+          size,
+          vx: (fromLeft ? 1 : -1) * rand(4, 7),
+          trail: fromLeft ? -1 : 1,
         });
       }
 
       function spawnStar() {
         const size = rand(14, 20);
-        stars.push({
-          x: rand(0, canvas.width - size),
-          y: -size,
-          size,
-          vy: rand(1.8, 2.8),
-          pulse: rand(0, Math.PI * 2),
-        });
+        stars.push({ x: rand(0, canvas.width - size), y: -size, size, vy: rand(2, 3.1), pulse: rand(0, Math.PI * 2) });
       }
 
       function spawnPower() {
+        const typePool = ["shield", "slowmo", "heal"];
+        const type = typePool[randInt(0, typePool.length - 1)];
         const size = 18;
-        const type = Math.random() < 0.5 ? "shield" : "slowmo";
-        powers.push({
-          x: rand(0, canvas.width - size),
-          y: -size,
-          size,
-          vy: rand(1.9, 2.5),
-          type,
-          pulse: rand(0, Math.PI * 2),
-        });
+        powers.push({ x: rand(0, canvas.width - size), y: -size, size, vy: rand(1.8, 2.5), type, pulse: rand(0, Math.PI * 2) });
       }
 
-      function spawnBurst(x, y, color, count = 18) {
+      function burst(x, y, color, count = 18) {
         for (let i = 0; i < count; i += 1) {
-          particles.push({
-            x,
-            y,
-            vx: rand(-3.8, 3.8),
-            vy: rand(-3.8, 3.8),
-            life: rand(18, 38),
-            color,
-          });
+          particles.push({ x, y, vx: rand(-3.5, 3.5), vy: rand(-3.5, 3.5), life: rand(18, 38), color });
         }
       }
 
@@ -307,52 +264,84 @@
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
       }
 
-      function addTrail() {
-        trails.push({
-          x: player.x + player.w / 2,
-          y: player.y + player.h / 2,
-          life: 11,
-        });
+      function addCrystal(amount) {
+        state.crystals += amount;
+        saveProgress();
       }
 
-      function hitPlayer(dmg) {
+      function applyDamage(amount) {
         if (player.invuln > 0 || player.dashFrames > 0) return;
 
         if (player.shield > 0) {
-          player.shield = Math.max(0, player.shield - 130);
-          player.invuln = 22;
-          spawnBurst(player.x + player.w / 2, player.y + player.h / 2, "#71fff6", 12);
+          player.shield = Math.max(0, player.shield - 180);
+          player.invuln = 18;
+          burst(player.x + player.w / 2, player.y + player.h / 2, "#6efff5", 12);
           return;
         }
 
-        player.hp -= dmg;
-        player.invuln = 50;
+        player.hp -= amount;
+        player.invuln = 52;
         state.combo = 1;
         state.comboTime = 0;
-        spawnBurst(player.x + player.w / 2, player.y + player.h / 2, "#ff6f7f", 24);
+        burst(player.x + player.w / 2, player.y + player.h / 2, "#ff7187", 25);
 
         if (player.hp <= 0) {
-          gameOver();
+          state.running = false;
+          state.gameOver = true;
+          if (state.score > state.best) {
+            state.best = Math.floor(state.score);
+            saveProgress();
+          }
+          statusEl.textContent = "☠ Game over. Space — заново";
         }
       }
 
-      function gameOver() {
-        state.running = false;
-        state.gameOver = true;
-        if (state.score > state.best) {
-          state.best = Math.floor(state.score);
-          localStorage.setItem(BEST_KEY, state.best);
+      function fireEMP() {
+        if (!state.running || state.paused || player.emp < 100) return;
+        player.emp = 0;
+        statusEl.textContent = "💠 EMP разряд!";
+        burst(player.x + player.w / 2, player.y + player.h / 2, "#86bbff", 36);
+
+        let destroyed = 0;
+        for (let i = meteors.length - 1; i >= 0; i -= 1) {
+          const m = meteors[i];
+          const dx = m.x + m.size / 2 - (player.x + player.w / 2);
+          const dy = m.y + m.size / 2 - (player.y + player.h / 2);
+          const d = Math.hypot(dx, dy);
+          if (d < 240) {
+            destroyed += 1;
+            addCrystal(m.elite ? 2 : 1);
+            state.score += m.elite ? 35 : 15;
+            burst(m.x + m.size / 2, m.y + m.size / 2, "#7ec3ff", 14);
+            meteors.splice(i, 1);
+          }
         }
-        statusEl.textContent = "☠ Конец игры. Space — рестарт";
+        state.score += destroyed * 10;
+      }
+
+      function buyUpgrade() {
+        if (state.running) return;
+        const cost = 25 + state.hpUpgrade * 10;
+        if (state.crystals < cost) {
+          statusEl.textContent = `Недостаточно кристаллов для U (нужно ${cost})`;
+          return;
+        }
+        state.crystals -= cost;
+        state.hpUpgrade += 1;
+        saveProgress();
+        statusEl.textContent = `Апгрейд корпуса куплен: +${state.hpUpgrade} HP`;
+        refreshHud();
       }
 
       function updateGame() {
         if (!state.running || state.paused) return;
 
         state.frame += 1;
+        state.wave = 1 + Math.floor(state.frame / 900);
 
-        const timeScale = player.slowmo > 0 ? 0.55 : 1;
+        const timeScale = player.slowmo > 0 ? 0.58 : 1;
         state.score += state.difficulty.scoreRate * state.combo * timeScale;
+        player.emp = Math.min(100, player.emp + 0.17 + state.wave * 0.005);
 
         const left = keys.ArrowLeft || keys.KeyA;
         const right = keys.ArrowRight || keys.KeyD;
@@ -361,8 +350,8 @@
         else if (right && !left) player.vx += player.speed;
         else player.vx *= 0.86;
 
-        const localMax = player.dashFrames > 0 ? player.maxSpeed * 1.9 : player.maxSpeed;
-        player.vx = Math.max(-localMax, Math.min(localMax, player.vx));
+        const topSpeed = player.dashFrames > 0 ? player.maxSpeed * 1.8 : player.maxSpeed;
+        player.vx = Math.max(-topSpeed, Math.min(topSpeed, player.vx));
         player.x += player.vx;
         player.x = Math.max(4, Math.min(canvas.width - player.w - 4, player.x));
 
@@ -372,32 +361,33 @@
         if (player.dashCd > 0) player.dashCd -= 1;
         if (player.dashFrames > 0) {
           player.dashFrames -= 1;
-          addTrail();
+          trails.push({ x: player.x + player.w / 2, y: player.y + player.h / 2, life: 10 });
         }
 
-        if (state.comboTime > 0) {
-          state.comboTime -= 1;
-        } else if (state.combo > 1) {
-          state.combo = Math.max(1, state.combo - 0.02);
-        }
+        if (state.comboTime > 0) state.comboTime -= 1;
+        else if (state.combo > 1) state.combo = Math.max(1, state.combo - 0.03);
 
         state.meteorTimer -= 1;
         if (state.meteorTimer <= 0) {
           spawnMeteor();
-          const accel = state.frame * 0.005;
-          state.meteorTimer = Math.max(12, state.difficulty.meteorSpawn - accel);
+          const reduced = state.difficulty.meteorSpawn - state.wave * 1.4;
+          state.meteorTimer = Math.max(11, reduced);
+        }
+
+        if (Math.random() < state.difficulty.cometChance * (1 + state.wave * 0.08) * 0.01) {
+          spawnComet();
         }
 
         state.starTimer -= 1;
         if (state.starTimer <= 0) {
           spawnStar();
-          state.starTimer = scheduleTimer(state.difficulty.starInterval);
+          state.starTimer = randInt(95, 155);
         }
 
         state.powerTimer -= 1;
         if (state.powerTimer <= 0) {
           spawnPower();
-          state.powerTimer = scheduleTimer(state.difficulty.powerInterval);
+          state.powerTimer = randInt(190, 290);
         }
 
         const pb = { x: player.x, y: player.y, w: player.w, h: player.h };
@@ -406,40 +396,44 @@
           const m = meteors[i];
           m.y += m.vy * timeScale;
           m.angle += m.spin;
-          if (m.zigzag) {
-            m.phase += 0.08;
-            m.x += Math.sin(m.phase) * 1.8;
-          } else {
-            m.x += m.vx * timeScale;
-          }
+          m.x += (m.zigzag ? Math.sin((m.phase += 0.08)) * 1.8 : m.vx) * timeScale;
 
           const mb = { x: m.x + 6, y: m.y + 6, w: m.size - 12, h: m.size - 12 };
           if (intersects(pb, mb)) {
-            hitPlayer(state.difficulty.damage);
+            applyDamage(state.difficulty.damage);
             meteors.splice(i, 1);
             continue;
           }
 
-          if (m.y > canvas.height + m.size || m.x < -m.size || m.x > canvas.width + m.size) {
-            meteors.splice(i, 1);
+          if (m.y > canvas.height + m.size || m.x < -m.size || m.x > canvas.width + m.size) meteors.splice(i, 1);
+        }
+
+        for (let i = comets.length - 1; i >= 0; i -= 1) {
+          const c = comets[i];
+          c.x += c.vx * timeScale;
+          const cb = { x: c.x - c.size / 2, y: c.y - c.size / 2, w: c.size, h: c.size };
+          if (intersects(pb, cb)) {
+            applyDamage(1);
+            comets.splice(i, 1);
+            continue;
           }
+          if (c.x < -120 || c.x > canvas.width + 120) comets.splice(i, 1);
         }
 
         for (let i = stars.length - 1; i >= 0; i -= 1) {
           const s = stars[i];
           s.y += s.vy * timeScale;
           s.pulse += 0.1;
-
           const sb = { x: s.x, y: s.y, w: s.size, h: s.size };
           if (intersects(pb, sb)) {
-            state.combo = Math.min(4, state.combo + 0.2);
-            state.comboTime = 220;
-            state.score += 30 * state.combo;
-            spawnBurst(s.x + s.size / 2, s.y + s.size / 2, "#7affea", 16);
+            state.combo = Math.min(4.5, state.combo + 0.25);
+            state.comboTime = 230;
+            state.score += 26 * state.combo;
+            player.emp = Math.min(100, player.emp + 10);
+            burst(s.x + s.size / 2, s.y + s.size / 2, "#7affea", 15);
             stars.splice(i, 1);
             continue;
           }
-
           if (s.y > canvas.height + s.size) stars.splice(i, 1);
         }
 
@@ -447,22 +441,22 @@
           const p = powers[i];
           p.y += p.vy * timeScale;
           p.pulse += 0.1;
-
           const rb = { x: p.x, y: p.y, w: p.size, h: p.size };
           if (intersects(pb, rb)) {
             if (p.type === "shield") {
-              player.shield = Math.min(520, player.shield + 320);
-              statusEl.textContent = "🛡 Щит активирован";
-              spawnBurst(p.x + p.size / 2, p.y + p.size / 2, "#70fff7", 16);
+              player.shield = Math.min(600, player.shield + 360);
+              statusEl.textContent = "🛡 Щит усилен";
+            } else if (p.type === "slowmo") {
+              player.slowmo = 250;
+              statusEl.textContent = "🌀 Time slow";
             } else {
-              player.slowmo = 260;
-              statusEl.textContent = "🌀 Slow-mo включен";
-              spawnBurst(p.x + p.size / 2, p.y + p.size / 2, "#c197ff", 16);
+              player.hp = Math.min(state.difficulty.hp + state.hpUpgrade, player.hp + 1);
+              statusEl.textContent = "💚 Ремонт +1 HP";
             }
+            burst(p.x + p.size / 2, p.y + p.size / 2, "#b6a1ff", 14);
             powers.splice(i, 1);
             continue;
           }
-
           if (p.y > canvas.height + p.size) powers.splice(i, 1);
         }
 
@@ -481,77 +475,46 @@
           if (trails[i].life <= 0) trails.splice(i, 1);
         }
 
-        updateHud();
+        refreshHud();
       }
 
       function drawShip() {
-        const x = player.x;
-        const y = player.y;
-        const glowColor = player.dashFrames > 0 ? "#ffe271" : "#68f6ff";
-
+        const glow = player.dashFrames > 0 ? "#ffe271" : "#68f6ff";
         ctx.save();
-        ctx.translate(x + player.w / 2, y + player.h / 2);
+        ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
         ctx.rotate(player.vx * 0.03);
-
-        ctx.fillStyle = glowColor;
-        ctx.shadowColor = glowColor;
+        ctx.fillStyle = glow;
+        ctx.shadowColor = glow;
         ctx.shadowBlur = 16;
-
         ctx.beginPath();
         ctx.moveTo(-player.w / 2, player.h / 2);
         ctx.lineTo(0, -player.h / 2);
         ctx.lineTo(player.w / 2, player.h / 2);
         ctx.closePath();
         ctx.fill();
-
         ctx.fillStyle = "#d8a4ff";
         ctx.fillRect(-8, 2, 16, 6);
         ctx.restore();
 
         if (player.shield > 0) {
-          ctx.strokeStyle = `rgba(113,255,246, ${0.25 + Math.sin(state.frame * 0.15) * 0.2})`;
+          ctx.strokeStyle = `rgba(113,255,246, ${0.22 + Math.sin(state.frame * 0.15) * 0.2})`;
           ctx.lineWidth = 4;
           ctx.beginPath();
-          ctx.arc(x + player.w / 2, y + player.h / 2, 28, 0, Math.PI * 2);
+          ctx.arc(player.x + player.w / 2, player.y + player.h / 2, 28, 0, Math.PI * 2);
           ctx.stroke();
         }
-      }
-
-      function drawOverlayText() {
-        if (state.running) {
-          if (state.paused) {
-            ctx.fillStyle = "rgba(8,10,20,0.55)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "#fff";
-            ctx.font = "700 44px Segoe UI";
-            ctx.textAlign = "center";
-            ctx.fillText("Пауза", canvas.width / 2, canvas.height / 2);
-          }
-          return;
-        }
-
-        ctx.fillStyle = "rgba(6, 8, 18, 0.66)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#f7f6ff";
-        ctx.textAlign = "center";
-        ctx.font = "700 44px Segoe UI";
-        ctx.fillText("Neon Drift X", canvas.width / 2, canvas.height / 2 - 50);
-        ctx.font = "500 24px Segoe UI";
-        ctx.fillStyle = "#a2f2ff";
-        const msg = state.gameOver ? "Space — сыграть ещё" : "1/2/3 выбери сложность, Space — старт";
-        ctx.fillText(msg, canvas.width / 2, canvas.height / 2);
       }
 
       function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        bg.addColorStop(0, player.slowmo > 0 ? "#1c1534" : "#0a0d27");
-        bg.addColorStop(1, player.slowmo > 0 ? "#0c1836" : "#031520");
+        bg.addColorStop(0, player.slowmo > 0 ? "#1a1538" : "#0a0d27");
+        bg.addColorStop(1, player.slowmo > 0 ? "#0b1835" : "#031520");
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        for (let i = 0; i < 60; i += 1) {
+        for (let i = 0; i < 68; i += 1) {
           const x = (i * 173 + state.frame * 0.38) % canvas.width;
           const y = (i * 97 + state.frame * 0.51) % canvas.height;
           const alpha = 0.12 + (i % 5) * 0.1;
@@ -560,10 +523,10 @@
         }
 
         trails.forEach((t) => {
-          ctx.globalAlpha = t.life / 11;
+          ctx.globalAlpha = t.life / 10;
           ctx.fillStyle = "#ffe271";
           ctx.beginPath();
-          ctx.arc(t.x, t.y, 8 * (t.life / 11), 0, Math.PI * 2);
+          ctx.arc(t.x, t.y, 8 * (t.life / 10), 0, Math.PI * 2);
           ctx.fill();
         });
         ctx.globalAlpha = 1;
@@ -572,46 +535,59 @@
           ctx.save();
           ctx.translate(m.x + m.size / 2, m.y + m.size / 2);
           ctx.rotate(m.angle);
-          ctx.fillStyle = m.fast ? "#ff5f7d" : "#ff8f66";
-          ctx.shadowColor = m.fast ? "#ff5f7d" : "#ff8f66";
-          ctx.shadowBlur = 12;
+          ctx.fillStyle = m.elite ? "#ff3f9a" : m.fast ? "#ff5f7d" : "#ff8f66";
+          ctx.shadowColor = m.elite ? "#ff3f9a" : "#ff8f66";
+          ctx.shadowBlur = m.elite ? 18 : 12;
           ctx.beginPath();
           for (let i = 0; i < 10; i += 1) {
             const r = i % 2 === 0 ? m.size / 2 : m.size / 2.7;
             const a = (Math.PI * 2 * i) / 10;
             const px = Math.cos(a) * r;
             const py = Math.sin(a) * r;
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
           }
           ctx.closePath();
           ctx.fill();
           ctx.restore();
         });
 
+        comets.forEach((c) => {
+          const grad = ctx.createLinearGradient(c.x, c.y, c.x - 36 * c.trail, c.y);
+          grad.addColorStop(0, "rgba(255,245,130,.95)");
+          grad.addColorStop(1, "rgba(255,160,100,0)");
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(c.x, c.y);
+          ctx.lineTo(c.x - 50 * c.trail, c.y);
+          ctx.stroke();
+          ctx.fillStyle = "#fff091";
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
         stars.forEach((s) => {
-          const alpha = 0.65 + Math.sin(s.pulse) * 0.28;
+          const alpha = 0.62 + Math.sin(s.pulse) * 0.28;
           ctx.fillStyle = `rgba(122,255,234,${alpha})`;
           ctx.shadowColor = "#7affea";
-          ctx.shadowBlur = 15;
+          ctx.shadowBlur = 14;
           ctx.beginPath();
           ctx.arc(s.x + s.size / 2, s.y + s.size / 2, s.size / 2, 0, Math.PI * 2);
           ctx.fill();
         });
 
         powers.forEach((p) => {
-          const color = p.type === "shield" ? "#72fff7" : "#ca9aff";
+          const color = p.type === "shield" ? "#72fff7" : p.type === "heal" ? "#8cff8f" : "#ca9aff";
+          const letter = p.type === "shield" ? "S" : p.type === "heal" ? "H" : "T";
           ctx.fillStyle = color;
           ctx.shadowColor = color;
           ctx.shadowBlur = 16;
-          ctx.beginPath();
-          ctx.rect(p.x, p.y, p.size, p.size);
-          ctx.fill();
-
-          ctx.fillStyle = "#0d1322";
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+          ctx.fillStyle = "#111626";
           ctx.font = "700 12px Segoe UI";
           ctx.textAlign = "center";
-          ctx.fillText(p.type === "shield" ? "S" : "T", p.x + p.size / 2, p.y + p.size / 2 + 4);
+          ctx.fillText(letter, p.x + p.size / 2, p.y + p.size / 2 + 4);
         });
 
         particles.forEach((p) => {
@@ -619,21 +595,37 @@
           ctx.fillStyle = p.color;
           ctx.fillRect(p.x, p.y, 3, 3);
         });
-
         ctx.globalAlpha = 1;
 
-        if (!(player.invuln > 0 && Math.floor(player.invuln / 4) % 2 === 0)) {
-          drawShip();
-        }
+        if (!(player.invuln > 0 && Math.floor(player.invuln / 4) % 2 === 0)) drawShip();
+
+        ctx.fillStyle = "rgba(255,255,255,.17)";
+        ctx.fillRect(12, canvas.height - 22, 150, 8);
+        ctx.fillStyle = "#85bcff";
+        ctx.fillRect(12, canvas.height - 22, 150 * (player.emp / 100), 8);
 
         if (player.dashCd > 0) {
-          ctx.fillStyle = "rgba(255,255,255,0.18)";
-          ctx.fillRect(12, canvas.height - 20, 140, 8);
+          ctx.fillStyle = "rgba(255,255,255,.15)";
+          ctx.fillRect(170, canvas.height - 22, 140, 8);
           ctx.fillStyle = "#ffe271";
-          ctx.fillRect(12, canvas.height - 20, 140 * (1 - player.dashCd / 130), 8);
+          ctx.fillRect(170, canvas.height - 22, 140 * (1 - player.dashCd / 130), 8);
         }
 
-        drawOverlayText();
+        if (!state.running || state.paused) {
+          ctx.fillStyle = "rgba(6,8,18,.66)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#f7f6ff";
+          ctx.font = "700 44px Segoe UI";
+          ctx.fillText("Neon Drift X+", canvas.width / 2, canvas.height / 2 - 60);
+          ctx.font = "500 24px Segoe UI";
+          ctx.fillStyle = "#a2f2ff";
+          const cost = 25 + state.hpUpgrade * 10;
+          const line1 = state.paused ? "Пауза (P — продолжить)" : (state.gameOver ? "Space — новая попытка" : "1/2/3 + Space для старта");
+          ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 10);
+          ctx.fillText(`U: апгрейд HP (+1) за ${cost} кристаллов | куплено: ${state.hpUpgrade}`, canvas.width / 2, canvas.height / 2 + 28);
+          ctx.fillText("E: EMP при 100% энергии — очищает область", canvas.width / 2, canvas.height / 2 + 64);
+        }
       }
 
       function loop() {
@@ -645,40 +637,35 @@
       window.addEventListener("keydown", (event) => {
         keys[event.code] = true;
 
+        if (["Digit1", "Digit2", "Digit3"].includes(event.code)) setDifficulty(event.code);
+
         if (event.code === "KeyP" && state.running) {
           state.paused = !state.paused;
           statusEl.textContent = state.paused ? "Пауза" : "Игра продолжается";
         }
 
-        if (["Digit1", "Digit2", "Digit3"].includes(event.code)) {
-          chooseDifficultyByKey(event.code);
+        if (event.code === "KeyU") buyUpgrade();
+
+        if ((event.code === "ShiftLeft" || event.code === "ShiftRight") && state.running && !state.paused && player.dashCd <= 0) {
+          player.dashFrames = 15;
+          player.dashCd = 130;
+          player.invuln = Math.max(player.invuln, 13);
+          player.vx += (keys.ArrowLeft || keys.KeyA ? -1 : 1) * 8;
+          statusEl.textContent = "⚡ Рывок";
         }
 
-        if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
-          if (state.running && !state.paused && player.dashCd <= 0) {
-            player.dashFrames = 16;
-            player.dashCd = 130;
-            player.invuln = Math.max(player.invuln, 14);
-            const dir = (keys.ArrowLeft || keys.KeyA) ? -1 : 1;
-            player.vx += dir * 8;
-            statusEl.textContent = "⚡ Рывок!";
-          }
-        }
+        if (event.code === "KeyE") fireEMP();
 
         if (event.code === "Space") {
           event.preventDefault();
-          if (!state.running) {
-            resetGame();
-          }
+          if (!state.running) resetGame();
         }
       });
 
-      window.addEventListener("keyup", (event) => {
-        keys[event.code] = false;
-      });
+      window.addEventListener("keyup", (event) => { keys[event.code] = false; });
 
       difficultyNameEl.textContent = state.difficulty.label;
-      updateHud();
+      refreshHud();
       draw();
       requestAnimationFrame(loop);
     </script>
